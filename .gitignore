@@ -1,0 +1,68 @@
+# ---- Python ----
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+build/
+dist/
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+ENV/
+
+# Pip
+pip-wheel-metadata/
+
+# ---- SQLite DB ----
+*.db
+*.sqlite3
+*.sqlite
+gearguard.db
+
+# ---- Streamlit ----
+.streamlit/secrets.toml
+.streamlit/config.toml
+.streamlit/cache/
+.streamlit/state/
+
+# ---- Logs ----
+*.log
+logs/
+nohup.out
+
+# ---- OS Junk ----
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ---- Editors/Tools ----
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ---- Python typing cache ----
+.mypy_cache/
+.pytype/
+
+# ---- Test/coverage ----
+.coverage
+htmlcov/
+.cache/
+
+# ---- Node (future-proof if you add it later) ----
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ---- Env files ----
+*.env
+.env.*
