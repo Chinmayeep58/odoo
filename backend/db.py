@@ -12,8 +12,15 @@ def init_db():
     c.execute("""
     CREATE TABLE IF NOT EXISTS teams(
         id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS technicians(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT,
-        technicians TEXT
+        team_id INTEGER
     )
     """)
 
@@ -24,7 +31,12 @@ def init_db():
         serial TEXT,
         department TEXT,
         employee TEXT,
-        team_id INTEGER
+        location TEXT,
+        purchase_date TEXT,
+        warranty_expiry TEXT,
+        team_id INTEGER,
+        default_technician INTEGER,
+        is_scrapped INTEGER DEFAULT 0
     )
     """)
 
@@ -36,9 +48,10 @@ def init_db():
         state TEXT,
         equipment_id INTEGER,
         team_id INTEGER,
-        technician TEXT,
+        technician_id INTEGER,
         scheduled_date TEXT,
-        duration_hours INTEGER
+        duration_hours INTEGER,
+        created_at TEXT
     )
     """)
 

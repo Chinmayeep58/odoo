@@ -1,140 +1,133 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from typing import Optional
+from datetime import datetime
 from db import init_db, get_conn
+from schemas import *
 
 app = FastAPI()
 init_db()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # allow Streamlit access
-    allow_credentials=True,
+    allow_origins=["*"],
     allow_methods=["*"],
-    allow_headers=["*"],
+    allow_headers=["*"]
 )
-
-
-class TeamCreate(BaseModel):
-    name: str
-    technicians: str
-
-
-class EquipmentCreate(BaseModel):
-    name: str
-    serial: str
-    department: str
-    employee: str
-    team_id: int
-
-
-class RequestCreate(BaseModel):
-    subject: str
-    req_type: str
-    equipment_id: int
-    scheduled_date: Optional[str] = None
-
-
-class RequestUpdate(BaseModel):
-    state: Optional[str] = None
-    technician: Optional[str] = None
-    duration_hours: Optional[int] = None
-
 
 @app.get("/")
 def root():
     return {"msg": "GearGuard API running"}
 
-
-# ------- Teams -------
+# -------- Teams --------
 @app.post("/teams")
-def create_team(team: TeamCreate):
+def create_team(t: TeamCreate):
     conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("INSERT INTO teams(name, technicians) VALUES (?,?)",
-                (team.name, team.technicians))
+    c = conn.cursor()
+    c.execute("INSERT INTO teams(name) VALUES (?)", (t.name,))
     conn.commit()
     conn.close()
     return {"status": "ok"}
-
 
 @app.get("/teams")
 def list_teams():
     conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM teams")
-    data = cur.fetchall()
+    data = conn.execute("SELECT * FROM teams").fetchall()
     conn.close()
     return data
 
-
-# ------- Equipment -------
-@app.post("/equipment")
-def create_equipment(eq: EquipmentCreate):
+# -------- Technicians --------
+@app.post("/technicians")
+def create_technician(t: TechnicianCreate):
     conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("""
-        INSERT INTO equipment(name,serial,department,employee,team_id)
-        VALUES (?,?,?,?,?)
-    """, (eq.name, eq.serial, eq.department, eq.employee, eq.team_id))
+    conn.execute(
+        "INSERT INTO technicians(name,team_id) VALUES (?,?)",
+        (t.name, t.team_id)
+    )
     conn.commit()
     conn.close()
     return {"status": "ok"}
 
+@app.get("/technicians")
+def list_technicians():
+    conn = get_conn()
+    data = conn.execute("SELECT * FROM technicians").fetchall()
+    conn.close()
+    return data
+
+# -------- Equipment --------
+@app.post("/equipment")
+def create_equipment(e: EquipmentCreate):
+    conn = get_conn()
+    conn.execute("""
+        INSERT INTO equipment(
+            name,serial,department,employee,location,
+            purchase_date,warranty_expiry,
+            team_id,default_technician
+        )
+        VALUES (?,?,?,?,?,?,?,?,?)
+    """, tuple(e.dict().values()))
+    conn.commit()
+    conn.close()
+    return {"status": "ok"}
 
 @app.get("/equipment")
 def list_equipment():
     conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM equipment")
-    data = cur.fetchall()
+    data = conn.execute("SELECT * FROM equipment").fetchall()
     conn.close()
     return data
 
-
-# ------- Requests -------
+# -------- Requests --------
 @app.post("/requests")
-def create_request(req: RequestCreate):
+def create_request(r: RequestCreate):
     conn = get_conn()
-    cur = conn.cursor()
+    c = conn.cursor()
 
-    cur.execute("SELECT team_id FROM equipment WHERE id=?", (req.equipment_id,))
-    team = cur.fetchone()
+    eq = c.execute("""
+        SELECT team_id, default_technician
+        FROM equipment WHERE id=?
+    """, (r.equipment_id,)).fetchone()
 
-    cur.execute("""
-        INSERT INTO requests(subject,req_type,state,equipment_id,team_id,scheduled_date)
-        VALUES (?,?,?,?,?,?)
-    """, (req.subject, req.req_type, "New", req.equipment_id, team[0], req.scheduled_date))
+    c.execute("""
+        INSERT INTO requests(
+            subject,req_type,state,
+            equipment_id,team_id,technician_id,
+            scheduled_date,created_at
+        )
+        VALUES (?,?,?,?,?,?,?,?)
+    """, (
+        r.subject, r.req_type, "New",
+        r.equipment_id, eq[0], eq[1],
+        r.scheduled_date, datetime.now().isoformat()
+    ))
 
     conn.commit()
     conn.close()
     return {"status": "ok"}
 
-
 @app.get("/requests")
 def list_requests():
     conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("SELECT * FROM requests")
-    data = cur.fetchall()
+    c = conn.cursor()
+    c.execute("SELECT * FROM requests")
+    data = c.fetchall()
     conn.close()
     return data
 
-
-@app.put("/requests/{req_id}")
-def update_request(req_id: int, data: RequestUpdate):
+@app.put("/requests/{rid}")
+def update_request(rid: int, u: RequestUpdate):
     conn = get_conn()
-    cur = conn.cursor()
+    c = conn.cursor()
 
-    if data.state:
-        cur.execute("UPDATE requests SET state=? WHERE id=?", (data.state, req_id))
+    for k, v in u.dict(exclude_none=True).items():
+        c.execute(f"UPDATE requests SET {k}=? WHERE id=?", (v, rid))
 
-    if data.technician:
-        cur.execute("UPDATE requests SET technician=? WHERE id=?", (data.technician, req_id))
-
-    if data.duration_hours:
-        cur.execute("UPDATE requests SET duration_hours=? WHERE id=?", (data.duration_hours, req_id))
+    # Scrap logic
+    if u.state == "Scrap":
+        c.execute("""
+            UPDATE equipment SET is_scrapped=1
+            WHERE id=(SELECT equipment_id FROM requests WHERE id=?)
+        """, (rid,))
 
     conn.commit()
     conn.close()
